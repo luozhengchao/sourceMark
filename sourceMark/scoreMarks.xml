@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.core.main.cloudscore.datasource.mapping.scoreMarks">
+    <resultMap id="OrignDoubleScoreResMap" type="com.core.main.cloudscore.scoremarks.dto.GetRankModel">
+        <result column="studentId" property="studentId"></result>
+    </resultMap>
+    <select id="getOrignSingleScore" parameterType="com.core.main.cloudscore.scoremarks.dto.OrignSingleScore"
+            resultType="com.core.main.cloudscore.scoremarks.dto.OrignSingleScore">
+         SELECT
+          a.TEST_ID testId,${subjectId} subjectId,a.STUDENT_ID studentId,a.SCORE score,a.TEST_CN testCN,b.SUBJECT_NAME subjectName,${level} as level,
+          RANK() OVER(
+            PARTITION BY a.SUBJECT_ID
+            ORDER BY a.SCORE DESC
+            ) rank
+          FROM
+          t_base_bda_test_score a,BDAS200051.t_dm_subject b
+          WHERE a.TEST_ID = ${testId} and a.SUBJECT_ID=${subjectId} and a.SUBJECT_ID =b.SUBJECT_ID
+    </select>
+    <select id="getScoreRuleList" parameterType="com.core.main.cloudscore.scoremarks.dto.MarkModel"
+            resultType="com.core.main.cloudscore.scoremarks.dto.MarkModel">
+        SELECT
+          MODEL_ID modelId,[PERCENT] [percent],SCORE markScore
+          FROM t_base_bda_test_mark_mode_infol
+    </select>
+    <insert id="putMarkedData" parameterType="java.util.List">
+        INSERT INTO t_base_bda_test_mark (TEST_ID,STUDENT_ID,SUBJECT_ID,SCORE,PM,TEST_CN,SUBJECT_NAME,level) VALUES
+        <foreach collection="list" item="item" index="index" separator=",">
+            (#{item.testId},#{item.studentId},#{item.subjectId},#{item.markScore},#{item.pm},#{item.testCN},#{item.subjectName},#{item.level})
+        </foreach>
+    </insert>
+    <select id="selectSubjectName" parameterType="com.core.main.cloudscore.scoremarks.dto.OriginSubject"
+            resultType="java.lang.String">
+        SELECT  a.SUBJECT_NAME FROM BDAS200051.t_dm_subject a where a.SUBJECT_ID = #{subjectId}
+    </select>
+    <select id="getOrignDoubleScore" parameterType="com.core.main.cloudscore.scoremarks.dto.OrignSingleScore"
+            resultType="com.core.main.cloudscore.scoremarks.dto.OrignSingleScore">
+        SELECT  a.testId,a.subjectId,a.studentId,a.markScore,a.testCN,a.subjectName,a.level, RANK() OVER(
+            PARTITION BY a.subjectId
+            ORDER BY a.markScore DESC
+            ) pm from(
+	    SELECT a.TEST_ID testId,a.STUDENT_ID studentId, #{subjectId} as subjectId ,SUM(SCORE) markScore,a.TEST_CN testCN,#{subjectName} subjectName,#{level} as level
+	    FROM t_base_bda_test_mark a
+	    WHERE a.TEST_ID = ${testId} and a.SUBJECT_ID in (${subjectId})
+	    GROUP BY a.TEST_ID,a.STUDENT_ID,a.TEST_CN
+        )a
+    </select>
+    <select id="getStudentRankList" parameterType="java.util.List"
+            resultType="com.core.main.cloudscore.scoremarks.bo.MarkScoreStudentBo">
+        <foreach collection="list" item="item" index="index" separator="UNION ALL">
+            <foreach collection="item.subjectIdList" item="subject" separator=" UNION ALL " open="">
+                SELECT STUDENT_ID as groupIndex,PM as categoryId,'${subject}' as category
+                from t_base_bda_test_mark
+                where TEST_ID=${item.testId} and SUBJECT_ID = '${subject}' and STUDENT_ID = ${item.studentId}
+            </foreach>
+        </foreach>
+    </select>
+    <select id="getSubjectListByTestId" parameterType="com.core.main.cloudscore.scoremarks.dto.GetRankModel" resultType="java.lang.String">
+        Select subject_id FROM t_base_bda_test_config Where TEST_ID = #{testId} and  SUBJECT_ID NOT IN (${subjectId1})
+    </select>
+</mapper>
